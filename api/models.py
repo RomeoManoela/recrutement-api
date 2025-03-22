@@ -24,7 +24,6 @@ class Offre(models.Model):
     competences_requises = models.TextField(blank=True, null=True)
     recruteur = models.ForeignKey(User, on_delete=models.CASCADE, related_name="offres")
     date_creation = models.DateTimeField(auto_now_add=True)
-    date_expiration = models.DateTimeField(blank=True, null=True)
 
 
 class Candidature(models.Model):

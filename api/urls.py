@@ -3,6 +3,10 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    # pour les utilisateurs
+    path("profil/", views.ProfileInfoModifierAPIView.as_view(), name="profil"),
+    path("candidats/", views.ToutCandidatAPIView.as_view(), name="candidats"),
+    path("candidat/<int:pk>/", views.CandidatInfoAPIView.as_view(), name="candidat"),
     # pour les authentications
     path("inscription/", views.InscriptionAPIView.as_view(), name="inscription"),
     path(
@@ -14,37 +18,44 @@ urlpatterns = [
         name="refresh",
     ),
     # pour les offres
-    path("offres/", views.ListerOffreAPIView.as_view(), name="offres"),
-    path("offres/<int:pk>/", views.DetailOffreAPIView.as_view(), name="offre-detail"),
+    path(
+        "offres/<int:offre_id>/candidats/",
+        views.ToutCandidatPostuleAPIView.as_view(),
+        name="candidats-postule",
+    ),
+    path("offres/rechercher/", views.ChercherOffreAPIView.as_view(), name="recherche"),
+    path(
+        "offres/", views.ListerToutesOffreAPIView.as_view(), name="offres"
+    ),  # toutes les offres
+    path(
+        "offres/<int:pk>/",
+        views.DetailToutesOffreAPIView.as_view(),
+        name="offre-detail",
+    ),  # toutes les offres
     path(
         "recruteur/offres/",
-        views.ListerCreerOffreAPIView.as_view(),
+        views.ListerCreerOffreRecruteurAPIView.as_view(),
         name="recruteur-offres",
     ),
     path(
         "recruteur/offres/<int:pk>/",
-        views.OffreAPIView.as_view(),
+        views.RetrouverOffreRecruteurAPIView.as_view(),
         name="recruteur-offre-detail",
     ),
     # pour les candidatures
     path(
-        "candidat/offres/<int:offre_id>/candidatures/",
-        views.ListerCreerCandidatureAPIView.as_view(),
-        name="candidat-candidatures",
+        "offres/<int:offre_id>/candidater/",
+        views.CreerCandidatureCandidatAPIView.as_view(),
+        name="creer-candidature",
     ),
     path(
-        "candidat/offres/<int:offre_id>/candidatures/creer/",
-        views.CreerCandidatureAPIView.as_view(),
-        name="candidat-candidature-creer",
+        "candidatures/<int:pk>/",
+        views.DetailCandidatureCandidatAPIView.as_view(),
+        name="candidature-detail",
     ),
     path(
-        "candidat/offres/<int:offre_id>/candidatures/<int:pk>/",
-        views.CandidatureAPIView.as_view(),
-        name="candidat-candidature-detail",
-    ),
-    path(
-        "candidat/offres/<int:offre_id>/candidatures/<int:pk>/supprimer/",
-        views.SupprimerCandidatureAPIView.as_view(),
-        name="candidat-candidature-supprimer",
+        "candidatures/",
+        views.ListerCandidatureCandidatAPIView.as_view(),
+        name="list-candidatures",
     ),
 ]

@@ -6,3 +6,4 @@ PyJWT
 pytz
 psycopg2-binary
 python-dotenv
+django-filter

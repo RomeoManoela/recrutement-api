@@ -1,7 +1,11 @@
+"""Vues pour les API"""
+
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.filters import SearchFilter
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -14,6 +18,45 @@ User = get_user_model()
 from .serializers import UserSerializer, OffreSerializer, CandidatureSerializer
 
 
+class ProfileInfoModifierAPIView(generics.RetrieveUpdateAPIView):
+    """Vue pour modifier les informations du profil d'un utilisateur"""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSerializer
+
+    def get_object(self):
+        return self.request.user
+
+
+class ToutCandidatAPIView(generics.ListAPIView):
+    """Vue pour lister tous les candidats"""
+
+    permission_classes = [IsRecruteur]
+    serializer_class = UserSerializer
+    queryset = User.objects.filter(role="candidat")
+
+
+class CandidatInfoAPIView(generics.RetrieveAPIView):
+    """Vue pour afficher les informations d'un candidat"""
+
+    permission_classes = [IsRecruteur]
+    serializer_class = UserSerializer
+    queryset = User.objects.filter(role="candidat")
+    lookup_field = "pk"
+
+
+class ToutCandidatPostuleAPIView(generics.ListAPIView):
+    """Vue pour lister tous les candidats qui ont postulé une offre donnée"""
+
+    permission_classes = [IsRecruteur]
+    serializer_class = UserSerializer
+
+    def get_queryset(self):
+        offre_id = self.kwargs.get("offre_id")
+        offre = get_object_or_404(Offre, id=offre_id)
+        return offre.candidatures.all()
+
+
 class InscriptionAPIView(generics.CreateAPIView):
     """vue pour l'inscription d'un utilisateur"""
 
@@ -22,6 +65,7 @@ class InscriptionAPIView(generics.CreateAPIView):
     serializer_class = UserSerializer
 
 
+# vues pour les JWTs
 class PersonnaliseeObtenirTokenAPIView(TokenObtainPairView):
     """Vue personnalisée pour obtenir un token JWT"""
 
@@ -57,8 +101,9 @@ class PersonnaliseeRafraichirTokenAPIView(TokenRefreshView):
         return reponse
 
 
-class ListerCreerOffreAPIView(generics.ListCreateAPIView):
-    """Vue pour lister et créer des offres pour un recruteur"""
+# vues pour les offres
+class ListerCreerOffreRecruteurAPIView(generics.ListCreateAPIView):
+    """Vue pour lister ou créer des offres pour un recruteur"""
 
     permission_classes = [IsRecruteur]
     serializer_class = OffreSerializer
@@ -70,16 +115,8 @@ class ListerCreerOffreAPIView(generics.ListCreateAPIView):
         return Offre.objects.filter(recruteur=self.request.user)
 
 
-class ListerOffreAPIView(generics.ListAPIView):
-    """Vue pour lister toutes les offres"""
-
-    permission_classes = [IsAuthenticated]
-    serializer_class = OffreSerializer
-    queryset = Offre.objects.all()
-
-
-class OffreAPIView(generics.RetrieveUpdateDestroyAPIView):
-    """Vue pour afficher, modifier et supprimer une offre"""
+class RetrouverOffreRecruteurAPIView(generics.RetrieveUpdateDestroyAPIView):
+    """Vue pour afficher, modifier et supprimer une offre pour un recruteur"""
 
     permission_classes = [IsRecruteur]
     serializer_class = OffreSerializer
@@ -89,8 +126,16 @@ class OffreAPIView(generics.RetrieveUpdateDestroyAPIView):
         return Offre.objects.filter(recruteur=self.request.user)
 
 
-class DetailOffreAPIView(generics.RetrieveAPIView):
-    """Vue pour afficher les détails d'une offre"""
+class ListerToutesOffreAPIView(generics.ListAPIView):
+    """Vue pour lister toutes les offres"""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = OffreSerializer
+    queryset = Offre.objects.all()
+
+
+class DetailToutesOffreAPIView(generics.RetrieveAPIView):
+    """Vue pour afficher les détails d'une offre pour tout le monde"""
 
     permission_classes = [IsAuthenticated]
     serializer_class = OffreSerializer
@@ -98,39 +143,49 @@ class DetailOffreAPIView(generics.RetrieveAPIView):
     lookup_field = "pk"
 
 
-class ListerCreerCandidatureAPIView(generics.ListCreateAPIView):
-    """Vue pour lister et créer des candidatures pour un candidat"""
+class ChercherOffreAPIView(generics.ListAPIView):
+    """Vue pour chercher des offres par mot-clé"""
 
-    permission_classes = [IsCandidat]
-    serializer_class = CandidatureSerializer
+    permission_classes = [IsAuthenticated]
+    serializer_class = OffreSerializer
+    queryset = Offre.objects.all()
+    search_fields = ["titre", "description"]
+    filter_backends = [SearchFilter, DjangoFilterBackend]
 
 
-class CreerCandidatureAPIView(generics.CreateAPIView):
+# vues pour les candidatures
+class CreerCandidatureCandidatAPIView(generics.CreateAPIView):
     """Vue pour créer une candidature"""
 
     permission_classes = [IsCandidat]
     serializer_class = CandidatureSerializer
-    parser_classes = [MultiPartParser, FormParser]  # Pour gérer les fichiers
+    parser_classes = [
+        MultiPartParser,
+        FormParser,
+        JSONParser,
+    ]  # Pour gérer les fichiers
 
     def perform_create(self, serializer):
         offre_id = self.kwargs.get("offre_id")
         offre = get_object_or_404(Offre, id=offre_id)
         serializer.save(candidat=self.request.user, offre=offre)
 
+    def get_queryset(self):
+        return Candidature.objects.filter(candidat=self.request.user)
 
-class CandidatureAPIView(generics.RetrieveUpdateDestroyAPIView):
-    """Vue pour afficher, modifier et supprimer une candidature"""
+
+class ListerCandidatureCandidatAPIView(generics.ListAPIView):
+    """Vue pour lister les candidatures d'un candidat"""
 
     permission_classes = [IsCandidat]
     serializer_class = CandidatureSerializer
-    lookup_field = "pk"
 
     def get_queryset(self):
         return Candidature.objects.filter(candidat=self.request.user)
 
 
-class SupprimerCandidatureAPIView(generics.DestroyAPIView):
-    """Vue pour supprimer une candidature"""
+class DetailCandidatureCandidatAPIView(generics.RetrieveUpdateDestroyAPIView):
+    """Vue pour afficher, modifier et supprimer une candidature pour un candidat"""
 
     permission_classes = [IsCandidat]
     serializer_class = CandidatureSerializer

@@ -6,7 +6,12 @@ urlpatterns = [
     # pour les utilisateurs
     path("profil/", views.ProfileInfoModifierAPIView.as_view(), name="profil"),
     path("candidats/", views.ToutCandidatAPIView.as_view(), name="candidats"),
-    path("candidat/<int:pk>/", views.CandidatInfoAPIView.as_view(), name="candidat"),
+    path("candidats/<int:pk>/", views.CandidatInfoAPIView.as_view(), name="candidat"),
+    path(
+        "recruteur/statistiques/",
+        views.StatistiquesRecruteurAPIView.as_view(),
+        name="statistiques",
+    ),
     # pour les authentications
     path("inscription/", views.InscriptionAPIView.as_view(), name="inscription"),
     path(
@@ -19,9 +24,14 @@ urlpatterns = [
     ),
     # pour les offres
     path(
-        "offres/<int:offre_id>/candidats/",
-        views.ToutCandidatPostuleAPIView.as_view(),
+        "recruteur/offres/<int:offre_id>/candidatures/",
+        views.ToutCandidaturesPostuleRecruteurAPIView.as_view(),
         name="candidats-postule",
+    ),
+    path(
+        "recruteur/offres/<int:offre_id>/candidats/",
+        views.ToutCandidatSurOffreRecruteurAPIView.as_view(),
+        name="candidats-offre",
     ),
     path("offres/rechercher/", views.ChercherOffreAPIView.as_view(), name="recherche"),
     path(
@@ -47,6 +57,11 @@ urlpatterns = [
         "offres/<int:offre_id>/candidater/",
         views.CreerCandidatureCandidatAPIView.as_view(),
         name="creer-candidature",
+    ),
+    path(
+        "candidatures/<int:pk>/mettre-a-jour-statut/",
+        views.MettreAJourStatutCandidatureAPIView.as_view(),
+        name="mettre-a-jour-statut",
     ),
     path(
         "candidatures/<int:pk>/",

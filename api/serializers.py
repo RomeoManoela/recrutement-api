@@ -41,7 +41,7 @@ class CandidatureSerializer(serializers.ModelSerializer):
     class Meta:
         model = Candidature
         fields = "__all__"
-        read_only_fields = ["id", "date_creation"]
+        read_only_fields = ["id", "date_creation", "candidat", "offre"]
 
     def create(self, validated_data):
         # Vérifier si une candidature existe déjà pour cette offre et ce candidat

@@ -37,3 +37,12 @@ class Candidature(models.Model):
     cv = models.FileField(upload_to="cvs/", blank=True, null=True)  # optionel
     lettre_motivation = models.TextField(blank=True, null=True)
     date_creation = models.DateTimeField(auto_now_add=True)
+    statut = models.CharField(
+        max_length=100,
+        default="en attente",
+        choices=(
+            ("en attente", "En attente"),
+            ("acceptée", "Acceptée"),
+            ("refusée", "Refusée"),
+        ),
+    )

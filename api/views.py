@@ -3,12 +3,17 @@
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema
 from rest_framework import generics
 from rest_framework.filters import SearchFilter
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework_simplejwt.serializers import (
+    TokenObtainPairSerializer,
+    TokenRefreshSerializer,
+)
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from .models import Offre, Candidature
@@ -18,45 +23,13 @@ User = get_user_model()
 from .serializers import UserSerializer, OffreSerializer, CandidatureSerializer
 
 
-class ProfileInfoModifierAPIView(generics.RetrieveUpdateAPIView):
-    """Vue pour modifier les informations du profil d'un utilisateur"""
-
-    permission_classes = [IsAuthenticated]
-    serializer_class = UserSerializer
-
-    def get_object(self):
-        return self.request.user
-
-
-class ToutCandidatAPIView(generics.ListAPIView):
-    """Vue pour lister tous les candidats"""
-
-    permission_classes = [IsRecruteur]
-    serializer_class = UserSerializer
-    queryset = User.objects.filter(role="candidat")
-
-
-class CandidatInfoAPIView(generics.RetrieveAPIView):
-    """Vue pour afficher les informations d'un candidat"""
-
-    permission_classes = [IsRecruteur]
-    serializer_class = UserSerializer
-    queryset = User.objects.filter(role="candidat")
-    lookup_field = "pk"
-
-
-class ToutCandidatPostuleAPIView(generics.ListAPIView):
-    """Vue pour lister tous les candidats qui ont postulé une offre donnée"""
-
-    permission_classes = [IsRecruteur]
-    serializer_class = UserSerializer
-
-    def get_queryset(self):
-        offre_id = self.kwargs.get("offre_id")
-        offre = get_object_or_404(Offre, id=offre_id)
-        return offre.candidatures.all()
-
-
+# POUR LES AUTHENTICATIONS
+@extend_schema(
+    tags=["Authentification"],
+    description="Inscription d'un nouvel utilisateur",
+    request=UserSerializer,
+    responses={201: UserSerializer},
+)
 class InscriptionAPIView(generics.CreateAPIView):
     """vue pour l'inscription d'un utilisateur"""
 
@@ -65,7 +38,18 @@ class InscriptionAPIView(generics.CreateAPIView):
     serializer_class = UserSerializer
 
 
-# vues pour les JWTs
+# JWTs
+@extend_schema(
+    tags=["Authentification"],
+    description="Obtention d'un token JWT",
+    request=TokenObtainPairSerializer,
+    responses={
+        200: {
+            "type": "object",
+            "properties": {"access": {"type": "string"}},
+        }
+    },
+)
 class PersonnaliseeObtenirTokenAPIView(TokenObtainPairView):
     """Vue personnalisée pour obtenir un token JWT"""
 
@@ -89,6 +73,12 @@ class PersonnaliseeObtenirTokenAPIView(TokenObtainPairView):
         return reponse
 
 
+@extend_schema(
+    tags=["Authentification"],
+    description="Rafraîchissement d'un token JWT",
+    request=TokenRefreshSerializer,
+    responses={200: {"type": "object", "properties": {"access": {"type": "string"}}}},
+)
 class PersonnaliseeRafraichirTokenAPIView(TokenRefreshView):
     """Vue personnalisée pour rafraîchir un token JWT"""
 
@@ -101,7 +91,147 @@ class PersonnaliseeRafraichirTokenAPIView(TokenRefreshView):
         return reponse
 
 
+# POUR LES UTILISATEURS
+@extend_schema(
+    tags=["Utilisateurs"],
+    description="Consulter et modifier son profil",
+    responses={200: UserSerializer},
+)
+class ProfileInfoModifierAPIView(generics.RetrieveUpdateAPIView):
+    """Vue pour modifier les informations du profil d'un utilisateur"""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSerializer
+
+    def get_object(self):
+        return self.request.user
+
+
+# recruteurs
+@extend_schema(
+    tags=["Statistiques"],
+    description="Statistiques pour le recruteur",
+    responses={
+        200: {
+            "type": "object",
+            "properties": {
+                "total_offres": {"type": "integer"},
+                "total_candidatures": {"type": "integer"},
+                "candidatures_par_offre": {"type": "object"},
+            },
+        }
+    },
+)
+class StatistiquesRecruteurAPIView(generics.RetrieveAPIView):
+    """Vue pour obtenir des statistiques sur les offres d'un recruteur"""
+
+    permission_classes = [IsRecruteur]
+
+    def retrieve(self, request, *args, **kwargs):
+        offres = Offre.objects.filter(recruteur=request.user)
+        total_offres = offres.count()
+        total_candidatures = Candidature.objects.filter(offre__in=offres).count()
+        candidatures_par_offre = {
+            offre.titre: offre.candidatures.count() for offre in offres
+        }
+
+        return Response(
+            {
+                "total_offres": total_offres,
+                "total_candidatures": total_candidatures,
+                "candidatures_par_offre": candidatures_par_offre,
+            }
+        )
+
+
+@extend_schema(
+    tags=["Candidatures"],
+    description="Mettre à jour le statut d'une candidature",
+    request=CandidatureSerializer,
+    responses={200: CandidatureSerializer},
+)
+class MettreAJourStatutCandidatureAPIView(generics.UpdateAPIView):
+    """Vue pour mettre à jour le statut d'une candidature"""
+
+    permission_classes = [IsRecruteur]
+    serializer_class = CandidatureSerializer
+    lookup_field = "pk"
+
+    def get_queryset(self):
+        return Candidature.objects.filter(offre__recruteur=self.request.user)
+
+
+@extend_schema(
+    tags=["Candidatures"],
+    description="Liste des candidatures pour une offre spécifique",
+    responses={200: CandidatureSerializer(many=True)},
+)
+class ToutCandidaturesPostuleRecruteurAPIView(generics.ListAPIView):
+    """Vue pour lister toutes les candidatures pour l'une de ses offres"""
+
+    permission_classes = [IsRecruteur]
+    serializer_class = CandidatureSerializer
+
+    def get_queryset(self):
+        offre_id = self.kwargs.get("offre_id")
+        offre = get_object_or_404(Offre, id=offre_id, recruteur=self.request.user)
+        return offre.candidatures.all()
+
+
+@extend_schema(
+    tags=["Candidats"],
+    description="Liste des candidats ayant postulé à une offre",
+    responses={200: UserSerializer(many=True)},
+)
+class ToutCandidatSurOffreRecruteurAPIView(generics.ListAPIView):
+    """Vue pour lister tous les candidats qui ont postulé sur l'une offre de ses offres"""
+
+    permission_classes = [IsRecruteur]
+    serializer_class = UserSerializer
+
+    def get_queryset(self):
+        offre_id = self.kwargs.get("offre_id")
+        offre = get_object_or_404(Offre, id=offre_id, recruteur=self.request.user)
+
+        candidat_ids = offre.candidatures.values_list("candidat", flat=True)
+        return User.objects.filter(id__in=candidat_ids)
+
+
+# candidat
+@extend_schema(
+    tags=["Candidats"],
+    description="Liste de tous les candidats",
+    responses={200: UserSerializer(many=True)},
+)
+class ToutCandidatAPIView(generics.ListAPIView):
+    """Vue pour lister tous les candidats"""
+
+    permission_classes = [IsRecruteur]
+    serializer_class = UserSerializer
+    queryset = User.objects.filter(role="candidat")
+
+
+@extend_schema(
+    tags=["Candidats"],
+    description="Détails d'un candidat spécifique",
+    responses={200: UserSerializer},
+)
+class CandidatInfoAPIView(generics.RetrieveAPIView):
+    """Vue pour afficher les informations d'un candidat"""
+
+    permission_classes = [IsRecruteur]
+    serializer_class = UserSerializer
+    queryset = User.objects.filter(role="candidat")
+    lookup_field = "pk"
+
+
 # vues pour les offres
+@extend_schema(
+    tags=["Offres"],
+    description="Liste et création des offres pour un recruteur",
+    request=OffreSerializer,
+    responses={200: OffreSerializer(many=True), 201: OffreSerializer},
+)
 class ListerCreerOffreRecruteurAPIView(generics.ListCreateAPIView):
     """Vue pour lister ou créer des offres pour un recruteur"""
 
@@ -115,6 +245,12 @@ class ListerCreerOffreRecruteurAPIView(generics.ListCreateAPIView):
         return Offre.objects.filter(recruteur=self.request.user)
 
 
+@extend_schema(
+    tags=["Offres"],
+    description="Détail, modification et suppression d'une offre pour une offre d'un recruteur",
+    request=OffreSerializer,
+    responses={200: OffreSerializer, 204: None},
+)
 class RetrouverOffreRecruteurAPIView(generics.RetrieveUpdateDestroyAPIView):
     """Vue pour afficher, modifier et supprimer une offre pour un recruteur"""
 
@@ -126,6 +262,11 @@ class RetrouverOffreRecruteurAPIView(generics.RetrieveUpdateDestroyAPIView):
         return Offre.objects.filter(recruteur=self.request.user)
 
 
+@extend_schema(
+    tags=["Offres"],
+    description="Liste de toutes les offres disponibles",
+    responses={200: OffreSerializer(many=True)},
+)
 class ListerToutesOffreAPIView(generics.ListAPIView):
     """Vue pour lister toutes les offres"""
 
@@ -134,6 +275,11 @@ class ListerToutesOffreAPIView(generics.ListAPIView):
     queryset = Offre.objects.all()
 
 
+@extend_schema(
+    tags=["Offres"],
+    description="Détail d'une offre spécifique",
+    responses={200: OffreSerializer},
+)
 class DetailToutesOffreAPIView(generics.RetrieveAPIView):
     """Vue pour afficher les détails d'une offre pour tout le monde"""
 
@@ -143,6 +289,11 @@ class DetailToutesOffreAPIView(generics.RetrieveAPIView):
     lookup_field = "pk"
 
 
+@extend_schema(
+    tags=["Offres"],
+    description="Recherche avancée d'offres",
+    responses={200: OffreSerializer(many=True)},
+)
 class ChercherOffreAPIView(generics.ListAPIView):
     """Vue pour chercher des offres par mot-clé"""
 
@@ -154,6 +305,12 @@ class ChercherOffreAPIView(generics.ListAPIView):
 
 
 # vues pour les candidatures
+@extend_schema(
+    tags=["Candidatures"],
+    description="Postuler à une offre",
+    request=CandidatureSerializer,
+    responses={201: CandidatureSerializer},
+)
 class CreerCandidatureCandidatAPIView(generics.CreateAPIView):
     """Vue pour créer une candidature"""
 
@@ -167,6 +324,7 @@ class CreerCandidatureCandidatAPIView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         offre_id = self.kwargs.get("offre_id")
+        print(offre_id)
         offre = get_object_or_404(Offre, id=offre_id)
         serializer.save(candidat=self.request.user, offre=offre)
 
@@ -174,6 +332,11 @@ class CreerCandidatureCandidatAPIView(generics.CreateAPIView):
         return Candidature.objects.filter(candidat=self.request.user)
 
 
+@extend_schema(
+    tags=["Candidatures"],
+    description="Liste des candidatures de l'utilisateur connecté",
+    responses={200: CandidatureSerializer(many=True)},
+)
 class ListerCandidatureCandidatAPIView(generics.ListAPIView):
     """Vue pour lister les candidatures d'un candidat"""
 
@@ -184,6 +347,11 @@ class ListerCandidatureCandidatAPIView(generics.ListAPIView):
         return Candidature.objects.filter(candidat=self.request.user)
 
 
+@extend_schema(
+    tags=["Candidatures"],
+    description="Détail d'une candidature spécifique",
+    responses={200: CandidatureSerializer},
+)
 class DetailCandidatureCandidatAPIView(generics.RetrieveUpdateDestroyAPIView):
     """Vue pour afficher, modifier et supprimer une candidature pour un candidat"""
 

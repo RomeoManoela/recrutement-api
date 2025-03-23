@@ -12,7 +12,6 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework_simplejwt.serializers import (
     TokenObtainPairSerializer,
-    TokenRefreshSerializer,
 )
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
@@ -26,7 +25,8 @@ from .serializers import UserSerializer, OffreSerializer, CandidatureSerializer
 # POUR LES AUTHENTICATIONS
 @extend_schema(
     tags=["Authentification"],
-    description="Inscription d'un nouvel utilisateur",
+    description="Inscription d'un nouvel utilisateur: role candidat pour"
+    " les candidats, recruteur pour les recruteurs",
     request=UserSerializer,
     responses={201: UserSerializer},
 )
@@ -41,7 +41,9 @@ class InscriptionAPIView(generics.CreateAPIView):
 # JWTs
 @extend_schema(
     tags=["Authentification"],
-    description="Obtention d'un token JWT",
+    description="Obtention d'un token JWT, assurer"
+    " de stocker l'access token, et d'inclure dans header à chaque"
+    " requete pour savoir qui est l' utilisateur connecté, et aussi pour les permissions ",
     request=TokenObtainPairSerializer,
     responses={
         200: {
@@ -75,8 +77,9 @@ class PersonnaliseeObtenirTokenAPIView(TokenObtainPairView):
 
 @extend_schema(
     tags=["Authentification"],
-    description="Rafraîchissement d'un token JWT",
-    request=TokenRefreshSerializer,
+    description="Rafraîchissement d'un token JWT, pas besoin de"
+    " données envoyées, le backend va chercher le refresh token dans les cookies http only",
+    request={},
     responses={200: {"type": "object", "properties": {"access": {"type": "string"}}}},
 )
 class PersonnaliseeRafraichirTokenAPIView(TokenRefreshView):
@@ -94,7 +97,8 @@ class PersonnaliseeRafraichirTokenAPIView(TokenRefreshView):
 # POUR LES UTILISATEURS
 @extend_schema(
     tags=["Utilisateurs"],
-    description="Consulter et modifier son profil",
+    description="Consulter et modifier son profil: PUT ou PATCH pour modifier"
+    " et GET pour consulter. PERMISSION : être connecté",
     responses={200: UserSerializer},
 )
 class ProfileInfoModifierAPIView(generics.RetrieveUpdateAPIView):
@@ -110,7 +114,7 @@ class ProfileInfoModifierAPIView(generics.RetrieveUpdateAPIView):
 # recruteurs
 @extend_schema(
     tags=["Statistiques"],
-    description="Statistiques pour le recruteur",
+    description="Statistiques pour le recruteur. PERMISSION : recruteur",
     responses={
         200: {
             "type": "object",
@@ -146,7 +150,7 @@ class StatistiquesRecruteurAPIView(generics.RetrieveAPIView):
 
 @extend_schema(
     tags=["Candidatures"],
-    description="Mettre à jour le statut d'une candidature",
+    description="Mettre à jour le statut d'une candidature: acceptée ou refusée, PERMISSION : recruteur ",
     request=CandidatureSerializer,
     responses={200: CandidatureSerializer},
 )
@@ -163,7 +167,9 @@ class MettreAJourStatutCandidatureAPIView(generics.UpdateAPIView):
 
 @extend_schema(
     tags=["Candidatures"],
-    description="Liste des candidatures pour une offre spécifique",
+    description="Liste des candidatures pour une offre spécifique d'un recruteur,"
+    "un recruteur peut consulter les candidatures sur l'une de ses offres, "
+    " PERMISSION : recruteur",
     responses={200: CandidatureSerializer(many=True)},
 )
 class ToutCandidaturesPostuleRecruteurAPIView(generics.ListAPIView):
@@ -180,7 +186,9 @@ class ToutCandidaturesPostuleRecruteurAPIView(generics.ListAPIView):
 
 @extend_schema(
     tags=["Candidats"],
-    description="Liste des candidats ayant postulé à une offre",
+    description="Liste des candidats pour une offre spécifique d'un recruteur,"
+    "un recruteur peut consulter les candidats qui ont postulé sur l'une de ses offres, "
+    " PERMISSION : recruteur",
     responses={200: UserSerializer(many=True)},
 )
 class ToutCandidatSurOffreRecruteurAPIView(generics.ListAPIView):
@@ -200,7 +208,7 @@ class ToutCandidatSurOffreRecruteurAPIView(generics.ListAPIView):
 # candidat
 @extend_schema(
     tags=["Candidats"],
-    description="Liste de tous les candidats",
+    description="Liste de tous les candidats, PERMISSION : recruteur",
     responses={200: UserSerializer(many=True)},
 )
 class ToutCandidatAPIView(generics.ListAPIView):
@@ -213,7 +221,7 @@ class ToutCandidatAPIView(generics.ListAPIView):
 
 @extend_schema(
     tags=["Candidats"],
-    description="Détails d'un candidat spécifique",
+    description="Détails d'un candidat spécifique, PERMISSION : recruteur",
     responses={200: UserSerializer},
 )
 class CandidatInfoAPIView(generics.RetrieveAPIView):
@@ -228,7 +236,7 @@ class CandidatInfoAPIView(generics.RetrieveAPIView):
 # vues pour les offres
 @extend_schema(
     tags=["Offres"],
-    description="Liste et création des offres pour un recruteur",
+    description="Liste et création des offres pour un recruteur: POST pour créer, GET pour lister ses offres, PERMISSION : recruteur",
     request=OffreSerializer,
     responses={200: OffreSerializer(many=True), 201: OffreSerializer},
 )
@@ -247,7 +255,8 @@ class ListerCreerOffreRecruteurAPIView(generics.ListCreateAPIView):
 
 @extend_schema(
     tags=["Offres"],
-    description="Détail, modification et suppression d'une offre pour une offre d'un recruteur",
+    description="Détail, modification et suppression d'une offre pour une offre d'un recruteur,"
+    " PUT/PATCH pour modifier, DELETE pour supprimer, GET pour consulter, PERMISSION : recruteur",
     request=OffreSerializer,
     responses={200: OffreSerializer, 204: None},
 )
@@ -264,7 +273,7 @@ class RetrouverOffreRecruteurAPIView(generics.RetrieveUpdateDestroyAPIView):
 
 @extend_schema(
     tags=["Offres"],
-    description="Liste de toutes les offres disponibles",
+    description="Liste de toutes les offres disponibles, PERMISSION : être connecté",
     responses={200: OffreSerializer(many=True)},
 )
 class ListerToutesOffreAPIView(generics.ListAPIView):
@@ -277,7 +286,7 @@ class ListerToutesOffreAPIView(generics.ListAPIView):
 
 @extend_schema(
     tags=["Offres"],
-    description="Détail d'une offre spécifique",
+    description="Détail d'une offre spécifique, PERMISSION : être connecté",
     responses={200: OffreSerializer},
 )
 class DetailToutesOffreAPIView(generics.RetrieveAPIView):
@@ -291,7 +300,7 @@ class DetailToutesOffreAPIView(generics.RetrieveAPIView):
 
 @extend_schema(
     tags=["Offres"],
-    description="Recherche avancée d'offres",
+    description="Recherche avancée d'offres, PERMISSION : être connecté",
     responses={200: OffreSerializer(many=True)},
 )
 class ChercherOffreAPIView(generics.ListAPIView):
@@ -307,7 +316,7 @@ class ChercherOffreAPIView(generics.ListAPIView):
 # vues pour les candidatures
 @extend_schema(
     tags=["Candidatures"],
-    description="Postuler à une offre",
+    description="Postuler à une offre, PERMISSION : candidat",
     request=CandidatureSerializer,
     responses={201: CandidatureSerializer},
 )
@@ -334,7 +343,7 @@ class CreerCandidatureCandidatAPIView(generics.CreateAPIView):
 
 @extend_schema(
     tags=["Candidatures"],
-    description="Liste des candidatures de l'utilisateur connecté",
+    description="Liste des candidatures du candidat connecté, PERMISSION : candidat",
     responses={200: CandidatureSerializer(many=True)},
 )
 class ListerCandidatureCandidatAPIView(generics.ListAPIView):
@@ -349,7 +358,7 @@ class ListerCandidatureCandidatAPIView(generics.ListAPIView):
 
 @extend_schema(
     tags=["Candidatures"],
-    description="Détail d'une candidature spécifique",
+    description="Détail d'une candidature spécifique, d'un candidat connecté, PERMISSION : candidat",
     responses={200: CandidatureSerializer},
 )
 class DetailCandidatureCandidatAPIView(generics.RetrieveUpdateDestroyAPIView):
